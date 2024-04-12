@@ -6,7 +6,7 @@ import pathlib
 import re
 import typing
 from io import BytesIO
-import logging
+
 
 from ..crypto import AES
 
@@ -368,7 +368,7 @@ class UploadMethods:
             caption = ''
 
         entity = await self.get_input_entity(entity)
-        logging.debug('Sending file to %s', entity)
+        print('Sending file to %s', entity)
         if comment_to is not None:
             entity, reply_to = await self._get_comment_data(entity, comment_to)
         else:
@@ -377,7 +377,7 @@ class UploadMethods:
         # First check if the user passed an iterable, in which case
         # we may want to send grouped.
         if utils.is_list_like(file):
-            logging.debug('Files is list like')
+            print('Files is list like')
             sent_count = 0
             used_callback = None if not progress_callback else (
                 lambda s, t: progress_callback(sent_count + s, len(file))
@@ -400,17 +400,17 @@ class UploadMethods:
                 file = file[10:]
                 captions = captions[10:]
                 sent_count += 10
-            logging.debug('Sent result', result)
+            print('Sent result', result)
             return result
 
         if formatting_entities is not None:
             msg_entities = formatting_entities
-            logging.debug('Got formatting_entities %s', msg_entities)
+            print('Got formatting_entities %s', msg_entities)
         else:
             caption, msg_entities =\
                 await self._parse_message_text(caption, parse_mode)
-            logging.debug('Parsed caption to %s with entities %s',
-                          caption, msg_entities)
+            print('Parsed caption to %s with entities %s',
+                  caption, msg_entities)
         file_handle, media, image = await self._file_to_media(
             file, force_document=force_document,
             file_size=file_size,
@@ -434,7 +434,7 @@ class UploadMethods:
             schedule_date=schedule, clear_draft=clear_draft,
             background=background
         )
-        logging.debug('Sending request %s', request)
+        print('Sending request %s', request)
         return self._get_response_message(request, await self(request), entity)
 
     async def _send_album(self: 'TelegramClient', entity, files, caption='',
