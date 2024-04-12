@@ -7,7 +7,6 @@ import re
 import typing
 from io import BytesIO
 
-
 from ..crypto import AES
 
 from .. import utils, helpers, hints
@@ -361,6 +360,7 @@ class UploadMethods:
         """
         # TODO Properly implement allow_cache to reuse the sha256 of the file
         # i.e. `None` was used
+        """ print(f'FORMATTING_ENTITIES: {formatting_entities}') """
         if not file:
             raise TypeError('Cannot use {!r} as file'.format(file))
 
@@ -368,7 +368,7 @@ class UploadMethods:
             caption = ''
 
         entity = await self.get_input_entity(entity)
-        print('Sending file to %s', entity)
+        """ print('Sending file to %s', entity) """
         if comment_to is not None:
             entity, reply_to = await self._get_comment_data(entity, comment_to)
         else:
@@ -377,7 +377,7 @@ class UploadMethods:
         # First check if the user passed an iterable, in which case
         # we may want to send grouped.
         if utils.is_list_like(file):
-            print('Files is list like')
+            """ print('Files is list like') """
             sent_count = 0
             used_callback = None if not progress_callback else (
                 lambda s, t: progress_callback(sent_count + s, len(file))
@@ -388,6 +388,11 @@ class UploadMethods:
             else:
                 captions = [caption]
 
+            if utils.is_list_like(formatting_entities):
+                formatting_entities = formatting_entities
+            else:
+                formatting_entities = [formatting_entities]
+
             result = []
             while file:
                 result += await self._send_album(
@@ -395,22 +400,24 @@ class UploadMethods:
                     progress_callback=used_callback, reply_to=reply_to,
                     parse_mode=parse_mode, silent=silent, schedule=schedule,
                     supports_streaming=supports_streaming, clear_draft=clear_draft,
-                    force_document=force_document, background=background,
+                    force_document=force_document, background=background, formatting_entities=formatting_entities[
+                        :10]
                 )
                 file = file[10:]
                 captions = captions[10:]
+                formatting_entities = formatting_entities[10:]
                 sent_count += 10
-            print('Sent result', result)
+            """ print('Sent result', result) """
             return result
 
         if formatting_entities is not None:
             msg_entities = formatting_entities
-            print('Got formatting_entities %s', msg_entities)
+            """ print('Got formatting_entities %s', msg_entities) """
         else:
             caption, msg_entities =\
                 await self._parse_message_text(caption, parse_mode)
-            print('Parsed caption to %s with entities %s',
-                  caption, msg_entities)
+            """ print('Parsed caption to %s with entities %s',
+                  caption, msg_entities) """
         file_handle, media, image = await self._file_to_media(
             file, force_document=force_document,
             file_size=file_size,
@@ -434,14 +441,15 @@ class UploadMethods:
             schedule_date=schedule, clear_draft=clear_draft,
             background=background
         )
-        print('Sending request %s', request)
+        """ print('Sending request %s', request) """
         return self._get_response_message(request, await self(request), entity)
 
     async def _send_album(self: 'TelegramClient', entity, files, caption='',
                           progress_callback=None, reply_to=None,
                           parse_mode=(), silent=None, schedule=None,
                           supports_streaming=None, clear_draft=None,
-                          force_document=False, background=None, ttl=None):
+                          force_document=False, background=None, ttl=None,
+                          formatting_entities=None):
         """Specialized version of .send_file for albums"""
         # We don't care if the user wants to avoid cache, we will use it
         # anyway. Why? The cached version will be exactly the same thing
@@ -455,11 +463,29 @@ class UploadMethods:
         entity = await self.get_input_entity(entity)
         if not utils.is_list_like(caption):
             caption = (caption,)
+            """ print(f'CAPTION IS NOT LIST LIKE {caption}') """
 
         captions = []
-        for c in reversed(caption):  # Pop from the end (so reverse)
-            captions.append(await self._parse_message_text(c or '', parse_mode))
+        if formatting_entities:
+            for c in reversed(caption):
+                captions.append(c)
+        else:
+            for c in reversed(caption):  # Pop from the end (so reverse)
+                captions.append(await self._parse_message_text(c or '', parse_mode))
+        """
+        print('Got captions %s', captions)
+        print('CAPTION TYPES', type(captions))
+        """
 
+        form_entities = []
+        if formatting_entities:
+
+            for e in reversed(formatting_entities):
+                form_entities.append(e)
+        """
+        print('Got formatting_entities %s', form_entities)
+        print('FORM ENTITY TYPES', type(form_entities))
+        """
         reply_to = utils.get_message_id(reply_to)
 
         used_callback = None if not progress_callback else (
@@ -494,15 +520,18 @@ class UploadMethods:
                     r.document, supports_streaming=supports_streaming)
 
             if captions:
-                caption, msg_entities = captions.pop()
+                caption, msg_entities = captions.pop(), form_entities.pop()
+                """ print(f'Got caption {caption} and entities {msg_entities}') """
             else:
                 caption, msg_entities = '', None
+            """ print(f'Got caption {caption} and entities {msg_entities}') """
             media.append(types.InputSingleMedia(
                 fm,
                 message=caption,
                 entities=msg_entities
                 # random_id is autogenerated
             ))
+            """ print(f'Got media {type(media)}') """
 
         # Now we can construct the multi-media request
         request = functions.messages.SendMultiMediaRequest(
