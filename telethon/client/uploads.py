@@ -6,6 +6,7 @@ import pathlib
 import re
 import typing
 from io import BytesIO
+import logging
 
 from ..crypto import AES
 
@@ -25,6 +26,7 @@ if typing.TYPE_CHECKING:
 
 class _CacheType:
     """Like functools.partial but pretends to be the wrapped class."""
+
     def __init__(self, cls):
         self._cls = cls
 
@@ -366,6 +368,7 @@ class UploadMethods:
             caption = ''
 
         entity = await self.get_input_entity(entity)
+        logging.debug('Sending file to %s', entity)
         if comment_to is not None:
             entity, reply_to = await self._get_comment_data(entity, comment_to)
         else:
@@ -374,6 +377,7 @@ class UploadMethods:
         # First check if the user passed an iterable, in which case
         # we may want to send grouped.
         if utils.is_list_like(file):
+            logging.debug('Files is list like')
             sent_count = 0
             used_callback = None if not progress_callback else (
                 lambda s, t: progress_callback(sent_count + s, len(file))
@@ -396,15 +400,17 @@ class UploadMethods:
                 file = file[10:]
                 captions = captions[10:]
                 sent_count += 10
-
+            logging.debug('Sent result', result)
             return result
 
         if formatting_entities is not None:
             msg_entities = formatting_entities
+            logging.debug('Got formatting_entities %s', msg_entities)
         else:
             caption, msg_entities =\
                 await self._parse_message_text(caption, parse_mode)
-
+            logging.debug('Parsed caption to %s with entities %s',
+                          caption, msg_entities)
         file_handle, media, image = await self._file_to_media(
             file, force_document=force_document,
             file_size=file_size,
@@ -420,13 +426,15 @@ class UploadMethods:
             raise TypeError('Cannot use {!r} as file'.format(file))
 
         markup = self.build_reply_markup(buttons)
-        reply_to = None if reply_to is None else types.InputReplyToMessage(reply_to)
+        reply_to = None if reply_to is None else types.InputReplyToMessage(
+            reply_to)
         request = functions.messages.SendMediaRequest(
             entity, media, reply_to=reply_to, message=caption,
             entities=msg_entities, reply_markup=markup, silent=silent,
             schedule_date=schedule, clear_draft=clear_draft,
             background=background
         )
+        logging.debug('Sending request %s', request)
         return self._get_response_message(request, await self(request), entity)
 
     async def _send_album(self: 'TelegramClient', entity, files, caption='',
@@ -456,7 +464,8 @@ class UploadMethods:
 
         used_callback = None if not progress_callback else (
             # use an integer when sent matches total, to easily determine a file has been fully sent
-            lambda s, t: progress_callback(sent_count + 1 if s == t else sent_count + s / t, len(files))
+            lambda s, t: progress_callback(
+                sent_count + 1 if s == t else sent_count + s / t, len(files))
         )
 
         # Need to upload the media first, but only if they're not cached yet
@@ -482,7 +491,7 @@ class UploadMethods:
                 ))
 
                 fm = utils.get_input_media(
-                   r.document, supports_streaming=supports_streaming)
+                    r.document, supports_streaming=supports_streaming)
 
             if captions:
                 caption, msg_entities = captions.pop()
@@ -610,7 +619,8 @@ class UploadMethods:
                 part_size_kb = utils.get_appropriated_part_size(file_size)
 
             if part_size_kb > 512:
-                raise ValueError('The part size must be less or equal to 512KB')
+                raise ValueError(
+                    'The part size must be less or equal to 512KB')
 
             part_size = int(part_size_kb * 1024)
             if part_size % 1024 != 0:
@@ -635,7 +645,7 @@ class UploadMethods:
 
             part_count = (file_size + part_size - 1) // part_size
             self._log[__name__].info('Uploading file of %d bytes in %d chunks of %d',
-                                    file_size, part_count, part_size)
+                                     file_size, part_count, part_size)
 
             pos = 0
             for part_index in range(part_count):
@@ -786,7 +796,8 @@ class UploadMethods:
 
             # setting `nosound_video` to `True` doesn't affect videos with sound
             # instead it prevents sending silent videos as GIFs
-            nosound_video = nosound_video if mime_type.split("/")[0] == 'video' else None
+            nosound_video = nosound_video if mime_type.split(
+                "/")[0] == 'video' else None
 
             media = types.InputMediaUploadedDocument(
                 file=file_handle,
